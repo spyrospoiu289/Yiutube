@@ -1,9 +1,24 @@
 from flask import Flask, request, jsonify
 from pytube import YouTube
-from pytube.request import default_range_size
+import pytube.request
 import os
 
 app = Flask(__name__)
+
+# Patch pytube.request.get to add User-Agent header
+original_get = pytube.request.get
+
+def patched_get(url, *args, **kwargs):
+    headers = kwargs.get("headers", {})
+    headers["User-Agent"] = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/119.0.0.0 Safari/537.36"
+    )
+    kwargs["headers"] = headers
+    return original_get(url, *args, **kwargs)
+
+pytube.request.get = patched_get
 
 @app.route('/')
 def home():
@@ -18,15 +33,6 @@ def download_video():
         return jsonify({'error': 'No URL provided'}), 400
 
     try:
-        # Patch user agent (this is key!)
-        import pytube.request
-        pytube.request.default_range_size = 1048576
-        pytube.request.headers["User-Agent"] = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/119.0.0.0 Safari/537.36"
-        )
-
         yt = YouTube(url)
         stream = yt.streams.filter(progressive=True, file_extension='mp4')\
                            .order_by('resolution')\
